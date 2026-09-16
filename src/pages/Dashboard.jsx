@@ -1,4 +1,4 @@
-import "./Dashboard.css";
+import "./dashboard.css";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import {
