@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -7,11 +7,9 @@ import {
   Globe2,
   Loader2,
   MapPin,
-  MessageCircle,
   Phone,
   Sparkles,
   Store,
-  UserRound,
 } from "lucide-react";
 
 import {
@@ -27,7 +25,9 @@ import { supabase } from "../lib/supabase.js";
 const PLANS = [
   {
     name: "Smart Card",
-    price: "299",
+    price: "400",
+    oldPrice: "500",
+    discount: "20% خصم",
     text: "البداية الذكية لنشاطك التجاري",
     features: [
       "كارت Smart Card",
@@ -40,7 +40,9 @@ const PLANS = [
   },
   {
     name: "Smart Card Pro",
-    price: "499",
+    price: "800",
+    oldPrice: "1000",
+    discount: "20% خصم",
     text: "التجربة الاحترافية الكاملة",
     featured: true,
     features: [
@@ -54,7 +56,9 @@ const PLANS = [
   },
   {
     name: "Business",
-    price: "799",
+    price: "1200",
+    oldPrice: "1500",
+    discount: "20% خصم",
     text: "للشركات والفروع المتعددة",
     features: [
       "كل مميزات Pro",
@@ -101,7 +105,7 @@ const CSS = `
   direction: rtl;
   min-height: 100vh;
   color: var(--sc-text);
-  background:
+  background: 
     radial-gradient(circle at 82% 8%, rgba(37,99,235,.20), transparent 28%),
     radial-gradient(circle at 15% 22%, rgba(216,170,74,.11), transparent 25%),
     linear-gradient(145deg, #030611 0%, #071022 48%, #030611 100%);
@@ -160,7 +164,7 @@ const CSS = `
 .sc-order-title {
   margin: 0;
   font-size: clamp(34px, 5vw, 64px);
-  line-height: 1.08;
+  line-height: 1.16;
   font-weight: 950;
   letter-spacing: -1.5px;
 }
@@ -171,6 +175,9 @@ const CSS = `
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  line-height: 1.25;
+  word-spacing: 3px;
+  letter-spacing: 0;
 }
 
 .sc-order-subtitle {
@@ -199,7 +206,7 @@ const CSS = `
 }
 
 .sc-order-panel {
-  background:
+  background: 
     linear-gradient(145deg, rgba(15,25,51,.92), rgba(6,13,29,.94));
   border: 1px solid var(--sc-border);
   border-radius: 26px;
@@ -264,9 +271,13 @@ const CSS = `
   font-size: 12px;
 }
 
-.sc-order-grid {
+/* FIX:
+   تم تغيير اسم الـ class من sc-order-grid
+   إلى sc-order-form-grid لمنع التعارض مع index.css.
+*/
+.sc-order-form-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0,1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -337,7 +348,7 @@ const CSS = `
   padding: 22px 18px;
   border-radius: 20px;
   border: 1px solid rgba(255,255,255,.09);
-  background:
+  background: 
     linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.018));
   cursor: pointer;
   transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
@@ -350,7 +361,7 @@ const CSS = `
 
 .sc-order-plan.selected {
   border-color: rgba(216,170,74,.75);
-  background:
+  background: 
     linear-gradient(145deg, rgba(216,170,74,.12), rgba(20,31,60,.75));
   box-shadow: 0 15px 40px rgba(0,0,0,.22);
 }
@@ -366,6 +377,26 @@ const CSS = `
   color: #17120a;
   font-size: 10px;
   font-weight: 950;
+}
+
+.sc-order-plan-discount {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(34,197,94,.11);
+  border: 1px solid rgba(34,197,94,.25);
+  color: #86efac;
+  font-size: 10px;
+  font-weight: 950;
+  z-index: 2;
+}
+
+.sc-order-plan.featured .sc-order-plan-discount {
+  right: auto;
+  left: 13px;
+  top: 48px;
 }
 
 .sc-order-plan-check {
@@ -402,9 +433,21 @@ const CSS = `
 
 .sc-order-plan-price {
   margin: 16px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
   font-size: 30px;
   font-weight: 950;
   color: var(--sc-gold-light);
+}
+
+.sc-order-plan-old-price {
+  color: #71809a;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
 }
 
 .sc-order-plan-price small {
@@ -532,7 +575,7 @@ const CSS = `
   border-radius: 25px;
   padding: 22px;
   overflow: hidden;
-  background:
+  background: 
     radial-gradient(circle at 85% 15%, rgba(59,130,246,.40), transparent 30%),
     radial-gradient(circle at 10% 90%, rgba(216,170,74,.24), transparent 35%),
     linear-gradient(145deg, #101d3c, #050a18);
@@ -604,7 +647,7 @@ const CSS = `
   height: 28px;
   border-radius: 7px;
   border: 1px solid rgba(216,170,74,.42);
-  background:
+  background: 
     linear-gradient(90deg, transparent 30%, rgba(216,170,74,.5) 31%, transparent 34%),
     linear-gradient(0deg, transparent 45%, rgba(216,170,74,.45) 46%, transparent 50%),
     rgba(216,170,74,.09);
@@ -697,9 +740,19 @@ const CSS = `
 }
 
 .sc-order-selected-price {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
   color: var(--sc-gold-light);
   font-size: 20px;
   font-weight: 950;
+}
+
+.sc-order-selected-old-price {
+  color: #71809a;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: line-through;
 }
 
 .sc-order-selected-price small {
@@ -756,7 +809,7 @@ const CSS = `
   text-align: center;
   border-radius: 28px;
   border: 1px solid rgba(216,170,74,.24);
-  background:
+  background: 
     radial-gradient(circle at 50% 0%, rgba(216,170,74,.12), transparent 42%),
     rgba(9,17,36,.9);
   box-shadow: 0 30px 90px rgba(0,0,0,.35);
@@ -851,7 +904,7 @@ const CSS = `
     font-size: 14px;
   }
 
-  .sc-order-grid,
+  .sc-order-form-grid,
   .sc-order-social-grid,
   .sc-order-plans {
     grid-template-columns: 1fr;
@@ -888,6 +941,11 @@ const CSS = `
     margin-left: 17px;
     margin-right: 17px;
   }
+
+  .sc-order-plan.featured .sc-order-plan-discount {
+    top: 13px;
+    left: 13px;
+  }
 }
 `;
 
@@ -901,6 +959,84 @@ export default function Order() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+
+  // Auth states
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadUser() {
+      try {
+        const {
+          data: { user: currentUser },
+        } = await supabase.auth.getUser();
+
+        if (!mounted) return;
+
+        setUser(currentUser || null);
+
+        // لو رجعنا من Google Login
+        // نسترجع بيانات الطلب المحفوظة
+        const savedOrder = sessionStorage.getItem(
+          "smart_card_pending_order"
+        );
+
+        if (currentUser && savedOrder) {
+          try {
+            const parsed = JSON.parse(savedOrder);
+
+            if (parsed.form) {
+              setForm(parsed.form);
+            }
+
+            if (parsed.plan) {
+              setPlan(parsed.plan);
+            }
+
+            sessionStorage.removeItem(
+              "smart_card_pending_order"
+            );
+          } catch (restoreError) {
+            console.error(
+              "Restore order error:",
+              restoreError
+            );
+
+            sessionStorage.removeItem(
+              "smart_card_pending_order"
+            );
+          }
+        }
+      } catch (authError) {
+        console.error("Auth load error:", authError);
+        setUser(null);
+      } finally {
+        if (mounted) {
+          setAuthLoading(false);
+        }
+      }
+    }
+
+    loadUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!mounted) return;
+
+        setUser(session?.user || null);
+        setAuthLoading(false);
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const selectedPlan =
     PLANS.find((item) => item.name === plan) || PLANS[1];
@@ -939,40 +1075,115 @@ export default function Order() {
     setLoading(true);
 
     try {
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+
+      /*
+       * لو المستخدم غير مسجل دخول:
+       * 1. نحفظ بيانات الطلب.
+       * 2. نفتح Google Login.
+       * 3. بعد الرجوع لـ /order البيانات هترجع تلقائيًا.
+       */
+      if (!currentUser) {
+        sessionStorage.setItem(
+          "smart_card_pending_order",
+          JSON.stringify({
+            plan: selectedPlan.name,
+            form,
+          })
+        );
+
+        const { error: googleError } =
+          await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+              redirectTo: `${window.location.origin}/order`,
+            },
+          });
+
+        if (googleError) {
+          throw googleError;
+        }
+
+        return;
+      }
+
+      /*
+       * المستخدم مسجل دخول:
+       * نحفظ الطلب في Supabase مربوط بحسابه.
+       */
       const { error: insertError } = await supabase
         .from("orders")
         .insert({
+          user_id: currentUser.id,
+
           plan: selectedPlan.name,
+
           shop_name: form.shop_name.trim(),
           responsible: form.responsible.trim(),
           phone: form.phone.trim(),
+
           whatsapp: form.whatsapp.trim() || null,
-          email: form.email.trim() || null,
-          google_review: form.google_review.trim() || null,
-          instagram: form.instagram.trim() || null,
-          facebook: form.facebook.trim() || null,
-          tiktok: form.tiktok.trim() || null,
-          youtube: form.youtube.trim() || null,
-          website: form.website.trim() || null,
-          location: form.location.trim() || null,
-          description: form.description.trim() || null,
-          logo_url: form.logo_url.trim() || null,
+
+          email:
+            form.email.trim() ||
+            currentUser.email ||
+            null,
+
+          google_review:
+            form.google_review.trim() || null,
+
+          instagram:
+            form.instagram.trim() || null,
+
+          facebook:
+            form.facebook.trim() || null,
+
+          tiktok:
+            form.tiktok.trim() || null,
+
+          youtube:
+            form.youtube.trim() || null,
+
+          website:
+            form.website.trim() || null,
+
+          location:
+            form.location.trim() || null,
+
+          description:
+            form.description.trim() || null,
+
+          logo_url:
+            form.logo_url.trim() || null,
+
+          status: "pending",
         });
 
       if (insertError) {
         throw insertError;
       }
 
+      // الطلب اتسجل بنجاح
+      sessionStorage.removeItem(
+        "smart_card_pending_order"
+      );
+
       setSuccess(true);
+
       window.scrollTo({
         top: 0,
         behavior: "smooth",
       });
     } catch (submitError) {
-      console.error("Order submit error:", submitError);
+      console.error(
+        "Order submit error:",
+        submitError
+      );
 
       setError(
-        "حصلت مشكلة أثناء إرسال الطلب. تأكد من الاتصال بالإنترنت وحاول مرة أخرى."
+        "حصلت مشكلة أثناء إرسال الطلب. تأكد من تسجيل الدخول وحاول مرة أخرى."
       );
     } finally {
       setLoading(false);
@@ -1083,7 +1294,10 @@ export default function Order() {
 
                     <div>
                       <h3>اختار الباقة</h3>
-                      <p>تقدر تغير اختيارك في أي وقت قبل إرسال الطلب.</p>
+
+                      <p>
+                        تقدر تغير اختيارك في أي وقت قبل إرسال الطلب.
+                      </p>
                     </div>
                   </div>
 
@@ -1112,7 +1326,13 @@ export default function Order() {
                           }}
                         >
                           <div className="sc-order-plan-check">
-                            {selected && <Check size={14} />}
+                            {selected && (
+                              <Check size={14} />
+                            )}
+                          </div>
+
+                          <div className="sc-order-plan-discount">
+                            {item.discount}
                           </div>
 
                           <div className="sc-order-plan-name">
@@ -1124,20 +1344,28 @@ export default function Order() {
                           </div>
 
                           <div className="sc-order-plan-price">
-                            {item.price}
-                            <small> جنيه</small>
+                            <span>
+                              {item.price}
+                              <small> جنيه</small>
+                            </span>
+
+                            <span className="sc-order-plan-old-price">
+                              {item.oldPrice} جنيه
+                            </span>
                           </div>
 
                           <div className="sc-order-plan-features">
-                            {item.features.slice(0, 4).map((feature) => (
-                              <div
-                                className="sc-order-plan-feature"
-                                key={feature}
-                              >
-                                <Check size={13} />
-                                {feature}
-                              </div>
-                            ))}
+                            {item.features
+                              .slice(0, 4)
+                              .map((feature) => (
+                                <div
+                                  className="sc-order-plan-feature"
+                                  key={feature}
+                                >
+                                  <Check size={13} />
+                                  {feature}
+                                </div>
+                              ))}
                           </div>
                         </div>
                       );
@@ -1153,23 +1381,30 @@ export default function Order() {
 
                     <div>
                       <h3>بيانات النشاط التجاري</h3>
+
                       <p>
                         البيانات الأساسية التي ستظهر في صفحة نشاطك.
                       </p>
                     </div>
                   </div>
 
-                  <div className="sc-order-grid">
+                  <div className="sc-order-form-grid">
                     <div className="sc-order-field">
                       <label className="sc-order-label">
-                        اسم المحل <span className="sc-order-required">*</span>
+                        اسم المحل{" "}
+                        <span className="sc-order-required">
+                          *
+                        </span>
                       </label>
 
                       <input
                         className="sc-order-input"
                         value={form.shop_name}
                         onChange={(e) =>
-                          updateField("shop_name", e.target.value)
+                          updateField(
+                            "shop_name",
+                            e.target.value
+                          )
                         }
                         placeholder="مثال: مطعم النيل"
                       />
@@ -1178,14 +1413,19 @@ export default function Order() {
                     <div className="sc-order-field">
                       <label className="sc-order-label">
                         اسم المسؤول{" "}
-                        <span className="sc-order-required">*</span>
+                        <span className="sc-order-required">
+                          *
+                        </span>
                       </label>
 
                       <input
                         className="sc-order-input"
                         value={form.responsible}
                         onChange={(e) =>
-                          updateField("responsible", e.target.value)
+                          updateField(
+                            "responsible",
+                            e.target.value
+                          )
                         }
                         placeholder="اسم صاحب أو مسؤول النشاط"
                       />
@@ -1193,7 +1433,10 @@ export default function Order() {
 
                     <div className="sc-order-field">
                       <label className="sc-order-label">
-                        الهاتف <span className="sc-order-required">*</span>
+                        الهاتف{" "}
+                        <span className="sc-order-required">
+                          *
+                        </span>
                       </label>
 
                       <input
@@ -1201,7 +1444,10 @@ export default function Order() {
                         type="tel"
                         value={form.phone}
                         onChange={(e) =>
-                          updateField("phone", e.target.value)
+                          updateField(
+                            "phone",
+                            e.target.value
+                          )
                         }
                         placeholder="01xxxxxxxxx"
                         dir="ltr"
@@ -1218,7 +1464,10 @@ export default function Order() {
                         type="tel"
                         value={form.whatsapp}
                         onChange={(e) =>
-                          updateField("whatsapp", e.target.value)
+                          updateField(
+                            "whatsapp",
+                            e.target.value
+                          )
                         }
                         placeholder="رقم الواتساب"
                         dir="ltr"
@@ -1235,7 +1484,10 @@ export default function Order() {
                         type="email"
                         value={form.email}
                         onChange={(e) =>
-                          updateField("email", e.target.value)
+                          updateField(
+                            "email",
+                            e.target.value
+                          )
                         }
                         placeholder="example@email.com"
                         dir="ltr"
@@ -1251,7 +1503,10 @@ export default function Order() {
                         className="sc-order-input"
                         value={form.location}
                         onChange={(e) =>
-                          updateField("location", e.target.value)
+                          updateField(
+                            "location",
+                            e.target.value
+                          )
                         }
                         placeholder="العنوان أو رابط Google Maps"
                       />
@@ -1266,7 +1521,10 @@ export default function Order() {
                         className="sc-order-textarea"
                         value={form.description}
                         onChange={(e) =>
-                          updateField("description", e.target.value)
+                          updateField(
+                            "description",
+                            e.target.value
+                          )
                         }
                         placeholder="اكتب وصفًا مختصرًا عن النشاط..."
                       />
@@ -1281,7 +1539,10 @@ export default function Order() {
                         className="sc-order-input"
                         value={form.logo_url}
                         onChange={(e) =>
-                          updateField("logo_url", e.target.value)
+                          updateField(
+                            "logo_url",
+                            e.target.value
+                          )
                         }
                         placeholder="https://..."
                         dir="ltr"
@@ -1298,6 +1559,7 @@ export default function Order() {
 
                     <div>
                       <h3>روابط النشاط</h3>
+
                       <p>
                         الروابط التي تريد ظهورها في صفحة Smart Card.
                       </p>
@@ -1313,7 +1575,10 @@ export default function Order() {
                       className="sc-order-input"
                       value={form.google_review}
                       onChange={(e) =>
-                        updateField("google_review", e.target.value)
+                        updateField(
+                          "google_review",
+                          e.target.value
+                        )
                       }
                       placeholder="رابط Google Reviews"
                       dir="ltr"
@@ -1333,7 +1598,10 @@ export default function Order() {
                         className="sc-order-input"
                         value={form.instagram}
                         onChange={(e) =>
-                          updateField("instagram", e.target.value)
+                          updateField(
+                            "instagram",
+                            e.target.value
+                          )
                         }
                         placeholder="Instagram"
                       />
@@ -1348,7 +1616,10 @@ export default function Order() {
                         className="sc-order-input"
                         value={form.facebook}
                         onChange={(e) =>
-                          updateField("facebook", e.target.value)
+                          updateField(
+                            "facebook",
+                            e.target.value
+                          )
                         }
                         placeholder="Facebook"
                       />
@@ -1363,7 +1634,10 @@ export default function Order() {
                         className="sc-order-input"
                         value={form.tiktok}
                         onChange={(e) =>
-                          updateField("tiktok", e.target.value)
+                          updateField(
+                            "tiktok",
+                            e.target.value
+                          )
                         }
                         placeholder="TikTok"
                       />
@@ -1378,7 +1652,10 @@ export default function Order() {
                         className="sc-order-input"
                         value={form.youtube}
                         onChange={(e) =>
-                          updateField("youtube", e.target.value)
+                          updateField(
+                            "youtube",
+                            e.target.value
+                          )
                         }
                         placeholder="YouTube"
                       />
@@ -1393,24 +1670,12 @@ export default function Order() {
                         className="sc-order-input"
                         value={form.website}
                         onChange={(e) =>
-                          updateField("website", e.target.value)
+                          updateField(
+                            "website",
+                            e.target.value
+                          )
                         }
                         placeholder="Website"
-                      />
-                    </div>
-
-                    <div className="sc-order-social">
-                      <span className="sc-order-social-icon">
-                        <FaWhatsapp />
-                      </span>
-
-                      <input
-                        className="sc-order-input"
-                        value={form.whatsapp}
-                        onChange={(e) =>
-                          updateField("whatsapp", e.target.value)
-                        }
-                        placeholder="WhatsApp"
                       />
                     </div>
                   </div>
@@ -1434,21 +1699,31 @@ export default function Order() {
                   <button
                     type="submit"
                     className="sc-order-submit"
-                    disabled={loading}
+                    disabled={
+                      loading ||
+                      authLoading
+                    }
                   >
-                    {loading ? (
+                    {loading || authLoading ? (
                       <>
                         <Loader2
                           size={18}
                           style={{
-                            animation: "sc-order-spin 1s linear infinite",
+                            animation:
+                              "sc-order-spin 1s linear infinite",
                           }}
                         />
-                        جاري إرسال الطلب...
+
+                        جاري التجهيز...
+                      </>
+                    ) : user ? (
+                      <>
+                        إرسال طلب Smart Card
+                        <ArrowLeft size={18} />
                       </>
                     ) : (
                       <>
-                        إرسال طلب Smart Card
+                        تسجيل الدخول وإرسال الطلب
                         <ArrowLeft size={18} />
                       </>
                     )}
@@ -1478,7 +1753,8 @@ export default function Order() {
                             src={form.logo_url}
                             alt=""
                             onError={(event) => {
-                              event.currentTarget.style.display = "none";
+                              event.currentTarget.style.display =
+                                "none";
                             }}
                           />
                         ) : (
@@ -1488,7 +1764,8 @@ export default function Order() {
 
                       <div className="sc-order-preview-brand-name">
                         <strong>
-                          {form.shop_name.trim() || "اسم نشاطك"}
+                          {form.shop_name.trim() ||
+                            "اسم نشاطك"}
                         </strong>
 
                         <span>Smart Card</span>
@@ -1499,28 +1776,38 @@ export default function Order() {
 
                     <div className="sc-order-preview-body">
                       <h3 className="sc-order-preview-title">
-                        {form.shop_name.trim() || "نشاطك التجاري"}
+                        {form.shop_name.trim() ||
+                          "نشاطك التجاري"}
                       </h3>
 
                       <div className="sc-order-preview-review">
-                        <strong>قيّم تجربتك معنا</strong>
+                        <strong>
+                          قيّم تجربتك معنا
+                        </strong>
 
                         <div className="sc-order-stars">
                           ★★★★★
                         </div>
                       </div>
 
-                      {(form.location || form.phone) && (
+                      {(form.location ||
+                        form.phone) && (
                         <div className="sc-order-preview-location">
                           {form.location ? (
                             <>
                               <MapPin size={14} />
-                              <span>{form.location}</span>
+
+                              <span>
+                                {form.location}
+                              </span>
                             </>
                           ) : (
                             <>
                               <Phone size={14} />
-                              <span>{form.phone}</span>
+
+                              <span>
+                                {form.phone}
+                              </span>
                             </>
                           )}
                         </div>
@@ -1561,14 +1848,22 @@ export default function Order() {
                       </div>
 
                       <div className="sc-order-selected-price">
-                        {selectedPlan.price}
-                        <small> جنيه</small>
+                        <span>
+                          {selectedPlan.price}
+                          <small> جنيه</small>
+                        </span>
+
+                        <span className="sc-order-selected-old-price">
+                          {selectedPlan.oldPrice}
+                        </span>
                       </div>
                     </div>
                   </div>
 
                   <div className="sc-order-benefits">
-                    <h4>إيه اللي هيحصل بعد الطلب؟</h4>
+                    <h4>
+                      إيه اللي هيحصل بعد الطلب؟
+                    </h4>
 
                     <div className="sc-order-benefit">
                       <Check size={15} />
@@ -1607,7 +1902,7 @@ export default function Order() {
 }
 
 /*
-  Google icon بسيط بدون الاعتماد على مكتبة أيقونات إضافية.
+Google icon بسيط بدون الاعتماد على مكتبة أيقونات إضافية.
 */
 function FaGoogleFallback() {
   return (

@@ -9,6 +9,7 @@ import About from "./pages/About.jsx";
 import HowItWorks from "./pages/HowItWorks.jsx";
 import Pricing from "./pages/Pricing.jsx";
 import Order from "./pages/Order.jsx";
+import Account from "./pages/Account.jsx";
 import Shop from "./pages/Shop.jsx";
 import AdminLogin from "./pages/AdminLogin.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
@@ -107,6 +108,16 @@ export default function App() {
           element={
             <MarketingLayout>
               <Order />
+            </MarketingLayout>
+          }
+        />
+
+        {/* حساب العميل */}
+        <Route
+          path="/account"
+          element={
+            <MarketingLayout>
+              <Account />
             </MarketingLayout>
           }
         />

@@ -1,125 +1,181 @@
 import { useEffect, useRef, useState } from "react";
+import { Download, ExternalLink, QrCode, Copy, Check } from "lucide-react";
 import QRCode from "qrcode";
-import { Download, ExternalLink } from "lucide-react";
+import { buildShopUrl } from "../lib/supabase.js";
 
 export default function QRCodeCard({
-  url,
-  title = "QR Code",
+  slug,
+  qrCode,
+  size = 220,
+  showDownload = true,
+  showActions = true,
+  label,
 }) {
   const canvasRef = useRef(null);
-  const [loading, setLoading] = useState(true);
+
+  const [dataUrl, setDataUrl] = useState("");
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  /*
+    الأولوية:
+    1) qrCode الحقيقي الموجود في cards.qr_code
+    2) لو الـDashboard القديم بيمرره في label
+    3) buildShopUrl من الـslug كـfallback
+  */
+  const url =
+    qrCode ||
+    (typeof label === "string" && /^https?:\/\//i.test(label.trim())
+      ? label.trim()
+      : null) ||
+    (slug ? buildShopUrl(slug) : null);
 
   useEffect(() => {
-    let active = true;
+    let cancelled = false;
 
-    async function generateQR() {
-      if (!url || !canvasRef.current) {
+    async function generate() {
+      if (!canvasRef.current || !url) {
+        setDataUrl("");
         return;
       }
 
+      setError("");
+
       try {
-        setLoading(true);
-        setError("");
+        await QRCode.toCanvas(canvasRef.current, url, {
+          width: size,
+          margin: 2,
+          errorCorrectionLevel: "H",
+          color: {
+            dark: "#07111f",
+            light: "#ffffff",
+          },
+        });
 
-        await QRCode.toCanvas(
-          canvasRef.current,
-          url,
-          {
-            width: 280,
-            margin: 2,
-            errorCorrectionLevel: "H",
-          }
-        );
+        if (cancelled) return;
 
-        if (active) {
-          setLoading(false);
-        }
+        const image = canvasRef.current.toDataURL("image/png");
+        setDataUrl(image);
       } catch (err) {
-        console.error(err);
-
-        if (active) {
-          setError("حصل خطأ أثناء إنشاء QR Code");
-          setLoading(false);
+        if (!cancelled) {
+          setError(err?.message || "تعذر إنشاء QR Code");
         }
       }
     }
 
-    generateQR();
+    generate();
 
     return () => {
-      active = false;
+      cancelled = true;
     };
-  }, [url]);
+  }, [url, size]);
 
   const downloadQR = () => {
-    if (!canvasRef.current || !url) {
-      return;
-    }
+    if (!dataUrl) return;
 
     const link = document.createElement("a");
-
-    link.download = "smart-card-qr.png";
-    link.href = canvasRef.current.toDataURL("image/png");
-
+    link.href = dataUrl;
+    link.download = `smart-card-qr-${slug || "card"}.png`;
+    document.body.appendChild(link);
     link.click();
+    link.remove();
+  };
+
+  const openUrl = () => {
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const copyUrl = async () => {
+    if (!url) return;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+
+      setTimeout(() => {
+        setCopied(false);
+      }, 1600);
+    } catch {
+      setError("تعذر نسخ الرابط");
+    }
   };
 
   if (!url) {
     return (
-      <div className="qr-box">
-        <h4>{title}</h4>
-        <p className="muted">
-          لا يوجد رابط للكارت.
-        </p>
+      <div className="qr-empty-state">
+        <QrCode size={30} />
+        <strong>لا يوجد رابط QR لهذا الكرت</strong>
+        <span>تأكد من ربط الكارت بالمحل.</span>
       </div>
     );
   }
 
   return (
-    <div className="qr-box">
-      <h4>{title}</h4>
+    <div className="qr-card-final">
+      <div className="qr-card-header">
+        <div>
+          <span>SMART CARD</span>
+          <strong>QR CODE</strong>
+        </div>
 
-      <div className="qr-preview">
+        <div className="qr-card-icon">
+          <QrCode size={18} />
+        </div>
+      </div>
+
+      <div className="qr-image-wrap">
         <canvas
           ref={canvasRef}
-          aria-label="Smart Card QR Code"
+          width={size}
+          height={size}
+          className="qr-canvas"
         />
-
-        {loading && (
-          <div className="qr-loading">
-            جاري إنشاء QR...
-          </div>
-        )}
-
-        {error && (
-          <div className="qr-error">
-            {error}
-          </div>
-        )}
       </div>
 
-      <div className="qr-actions">
+      {error ? (
+        <div className="qr-error">
+          {error}
+        </div>
+      ) : (
+        <div className="qr-url">
+          {url}
+        </div>
+      )}
 
-        <button
-          type="button"
-          onClick={downloadQR}
-          disabled={loading || !!error}
-        >
-          <Download size={16} />
-          تحميل
-        </button>
+      {showActions && (
+        <div className="qr-actions">
+          <button
+            type="button"
+            className="qr-action primary"
+            onClick={openUrl}
+          >
+            <ExternalLink size={16} />
+            فتح الصفحة
+          </button>
 
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <ExternalLink size={16} />
-          فتح
-        </a>
+          <button
+            type="button"
+            className="qr-action"
+            onClick={copyUrl}
+          >
+            {copied ? <Check size={16} /> : <Copy size={16} />}
+            {copied ? "تم النسخ" : "نسخ الرابط"}
+          </button>
 
-      </div>
+          {showDownload && (
+            <button
+              type="button"
+              className="qr-action"
+              onClick={downloadQR}
+              disabled={!dataUrl}
+            >
+              <Download size={16} />
+              تحميل QR
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
