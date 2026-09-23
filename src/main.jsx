@@ -7,7 +7,7 @@ import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/Smart-Card">
       <App />
     </BrowserRouter>
   </React.StrictMode>
