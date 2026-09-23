@@ -1098,7 +1098,9 @@ export default function Order() {
           await supabase.auth.signInWithOAuth({
             provider: "google",
             options: {
-              redirectTo: `${window.location.origin}/order`,
+              redirectTo: import.meta.env.DEV
+              ? `${window.location.origin}/order`
+              : `${window.location.origin}/Smart-Card/order`
             },
           });
 
