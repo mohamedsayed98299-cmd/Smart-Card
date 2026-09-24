@@ -40,6 +40,7 @@ import {
   MapPin,
   Share2,
   QrCode,
+  CheckCircle2,
 } from "lucide-react";
 
 import {
@@ -2376,6 +2377,8 @@ function OrderDetails({
   const {
     user,
     setShops,
+    setCards,
+    setOrders,
   } = useDashboard();
 
   const [saving, setSaving] =
@@ -2389,287 +2392,316 @@ function OrderDetails({
      تنفيذ طلب جديد
   ======================================================= */
 
+  const setOrderStatus = async (nextStatus) => {
+    if (saving || syncing) return;
+    setSaving(true);
+    setError("");
+    try {
+      const { data: updatedOrder, error: orderError } = await supabase
+        .from("orders")
+        .update({ status: nextStatus })
+        .eq("id", order.id)
+        .select()
+        .single();
+      if (orderError) throw orderError;
+      setOrders((current) =>
+        current.map((item) => item.id === order.id ? updatedOrder : item)
+      );
+      await onCompleted();
+    } catch (error) {
+      console.error("SET ORDER STATUS ERROR:", error);
+      setError(error?.message || "تعذر تحديث حالة الطلب.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const startOrder = async () => {
-    if (saving || syncing) {
+  if (saving || syncing) {
+    return;
+  }
+
+  setSaving(true);
+  setError("");
+
+  let createdShop = null;
+  let createdCard = null;
+
+  try {
+    /* ---------------------------------------------
+       منع تكرار تنفيذ نفس الطلب
+    --------------------------------------------- */
+
+    if (order.shop_id || order.card_id) {
+      setError(
+        "الطلب ده تم تنفيذه بالفعل ومربوط بنشاط وكارت."
+      );
+
       return;
     }
 
-    setSaving(true);
-    setError("");
+    /* ---------------------------------------------
+       إنشاء البيانات الأساسية
+    --------------------------------------------- */
+
+    const slug = generateSlug(
+      order.shop_name || "shop"
+    );
+
+    const cardNumber = generateCardNumber();
+
+    const shopUrl = buildShopUrl(slug);
 
+    /* ---------------------------------------------
+       إنشاء SHOP
+    --------------------------------------------- */
 
-    let createdShop = null;
-    let createdCard = null;
-
-
-    try {
-
-      /* ---------------------------------------------
-         منع تكرار تنفيذ نفس الطلب
-      --------------------------------------------- */
-
-      if (order.shop_id) {
-
-        setError(
-          "الطلب ده تم تنفيذه بالفعل ومربوط بنشاط موجود."
-        );
-
-        setSaving(false);
-        return;
-      }
-
-
-      /* ---------------------------------------------
-         إنشاء البيانات الأساسية
-      --------------------------------------------- */
-
-      const slug =
-        generateSlug(
-          order.shop_name
-        );
-
-      const cardNumber =
-        generateCardNumber();
-
-      const shopUrl =
-        buildShopUrl(slug);
-
-
-      /* ---------------------------------------------
-         إنشاء الـ SHOP
-      --------------------------------------------- */
-
-      const {
-        data: shop,
-        error: shopError,
-      } =
-        await supabase
-          .from("shops")
-          .insert({
-
-            name:
-              order.shop_name?.trim() ||
-              "نشاط جديد",
-
-            responsible:
-              order.responsible?.trim() ||
-              null,
-
-            phone:
-              order.phone?.trim() ||
-              null,
-
-            whatsapp:
-              order.whatsapp?.trim() ||
-              null,
-
-            google_review:
-              order.google_review?.trim() ||
-              null,
-
-            instagram:
-              order.instagram?.trim() ||
-              null,
-
-            facebook:
-              order.facebook?.trim() ||
-              null,
-
-            tiktok:
-              order.tiktok?.trim() ||
-              null,
-
-            youtube:
-              order.youtube?.trim() ||
-              null,
-
-            website:
-              order.website?.trim() ||
-              null,
-
-            location:
-              order.location?.trim() ||
-              null,
-
-            description:
-              order.description?.trim() ||
-              null,
-
-            logo_url:
-              order.logo_url?.trim() ||
-              null,
-
-            is_active: true,
-
-            slug,
-
-            card_number:
-              cardNumber,
-
-            created_by:
-              user?.id || null,
-          })
-          .select()
-          .single();
-
-
-      if (shopError) {
-        throw shopError;
-      }
-
-
-      createdShop = shop;
-
-
-      /* ---------------------------------------------
-         إنشاء الـ CARD
-      --------------------------------------------- */
-
-      const {
-        data: card,
-        error: cardError,
-      } =
-        await supabase
-          .from("cards")
-          .insert({
-
-            shop_id:
-              shop.id,
-
-            card_number:
-              cardNumber,
-
-            qr_code:
-              shopUrl,
-
-            nfc_url:
-              shopUrl,
-
-            status:
-              "pending",
-          })
-          .select(
-            "*, shops:shop_id(name, slug)"
-          )
-          .single();
-
-
-      if (cardError) {
-        throw cardError;
-      }
-
-
-      createdCard = card;
-
-
-      /* ---------------------------------------------
-         ربط ORDER بالـ SHOP
-      --------------------------------------------- */
-
-      const {
-        error: orderError,
-      } =
-        await supabase
-          .from("orders")
-          .update({
-
-            shop_id:
-              shop.id,
-
-            status:
-              "approved",
-
-          })
-          .eq(
-            "id",
-            order.id
-          );
-
-
-      if (orderError) {
-        throw orderError;
-      }
-
-
-      /* ---------------------------------------------
-         تحديث المحلات محليًا
-      --------------------------------------------- */
-
-      setShops((current) => [
-        shop,
-        ...current,
-      ]);
-
-
-      /* ---------------------------------------------
-         نجاح
-      --------------------------------------------- */
-
-      setSaving(false);
-
-
-      alert(
-        `تم تنفيذ الطلب بنجاح
-
-النشاط: ${shop.name}
+    const {
+      data: shop,
+      error: shopError,
+    } = await supabase
+      .from("shops")
+      .insert({
+        name:
+          order.shop_name?.trim() ||
+          "نشاط جديد",
+
+        responsible:
+          order.responsible?.trim() ||
+          null,
+
+        phone:
+          order.phone?.trim() ||
+          null,
+
+        whatsapp:
+          order.whatsapp?.trim() ||
+          null,
+
+        google_review:
+          order.google_review?.trim() ||
+          null,
+
+        instagram:
+          order.instagram?.trim() ||
+          null,
+
+        facebook:
+          order.facebook?.trim() ||
+          null,
+
+        tiktok:
+          order.tiktok?.trim() ||
+          null,
+
+        youtube:
+          order.youtube?.trim() ||
+          null,
+
+        website:
+          order.website?.trim() ||
+          null,
+
+        location:
+          order.location?.trim() ||
+          null,
+
+        description:
+          order.description?.trim() ||
+          null,
+
+        logo_url:
+          order.logo_url?.trim() ||
+          null,
+
+        is_active: true,
+
+        slug,
+
+        card_number: cardNumber,
+
+        created_by:
+          user?.id || null,
+      })
+      .select()
+      .single();
+
+    if (shopError) {
+      throw shopError;
+    }
+
+    createdShop = shop;
+
+    /* ---------------------------------------------
+       إنشاء CARD
+       ملاحظة:
+       cards.id عندنا BIGINT
+       Supabase هيولد الـID تلقائيًا.
+    --------------------------------------------- */
+
+    const {
+      data: card,
+      error: cardError,
+    } = await supabase
+      .from("cards")
+      .insert({
+        shop_id: shop.id,
+
+        card_number: cardNumber,
+
+        qr_code: shopUrl,
+
+        nfc_url: shopUrl,
+
+        status: "pending",
+      })
+      .select(
+        "*, shops:shop_id(name, slug)"
+      )
+      .single();
+
+    if (cardError) {
+      throw cardError;
+    }
+
+    createdCard = card;
+
+    /* ---------------------------------------------
+       ربط ORDER بالـ SHOP + CARD
+    --------------------------------------------- */
+
+    const {
+      data: updatedOrder,
+      error: orderError,
+    } = await supabase
+      .from("orders")
+      .update({
+        shop_id: shop.id,
+
+        /*
+         * مهم:
+         * cards.id عندنا BIGINT
+         * و card.id هنا هو الـID الحقيقي للكارت
+         */
+        card_id: card.id,
+
+        status: "approved",
+
+        approved_at:
+          new Date().toISOString(),
+
+        approved_by:
+          user?.id || null,
+      })
+      .eq("id", order.id)
+      .select()
+      .single();
+
+    if (orderError) {
+      throw orderError;
+    }
+
+    /* ---------------------------------------------
+       تحديث بيانات Dashboard محليًا
+    --------------------------------------------- */
+
+    setShops((current) => [
+      shop,
+      ...current,
+    ]);
+
+    setCards((current) => [
+      card,
+      ...current,
+    ]);
+
+    setOrders((current) =>
+      current.map((item) =>
+        item.id === order.id
+          ? updatedOrder
+          : item
+      )
+    );
+
+    /* ---------------------------------------------
+       نجاح
+    --------------------------------------------- */
+
+    alert(
+      `تم تنفيذ الطلب بنجاح
+
+النشاط:
+${shop.name}
 
 رقم الكارت:
 ${cardNumber}
 
+حالة الطلب:
+تم اعتماد الطلب
+
 حالة الكارت:
 قيد التجهيز`
-      );
+    );
 
+    await onCompleted();
 
-      await onCompleted();
+  } catch (error) {
+    console.error(
+      "START ORDER ERROR:",
+      error
+    );
 
-    } catch (error) {
+    /* ---------------------------------------------
+       تنظيف تلقائي لو حصل خطأ
+    --------------------------------------------- */
 
-      console.error(
-        "START ORDER ERROR:",
-        error
-      );
+    if (createdCard?.id) {
+      const {
+        error: deleteCardError,
+      } = await supabase
+        .from("cards")
+        .delete()
+        .eq(
+          "id",
+          createdCard.id
+        );
 
-
-      /* ---------------------------------------------
-         تنظيف البيانات لو حصل خطأ
-      --------------------------------------------- */
-
-      if (
-        createdCard?.id
-      ) {
-        await supabase
-          .from("cards")
-          .delete()
-          .eq(
-            "id",
-            createdCard.id
-          );
+      if (deleteCardError) {
+        console.error(
+          "DELETE CARD ERROR:",
+          deleteCardError
+        );
       }
-
-
-      if (
-        createdShop?.id
-      ) {
-        await supabase
-          .from("shops")
-          .delete()
-          .eq(
-            "id",
-            createdShop.id
-          );
-      }
-
-
-      setError(
-        error?.message ||
-          "حدث خطأ أثناء تنفيذ الطلب."
-      );
-
-
-      setSaving(false);
     }
-  };
+
+    if (createdShop?.id) {
+      const {
+        error: deleteShopError,
+      } = await supabase
+        .from("shops")
+        .delete()
+        .eq(
+          "id",
+          createdShop.id
+        );
+
+      if (deleteShopError) {
+        console.error(
+          "DELETE SHOP ERROR:",
+          deleteShopError
+        );
+      }
+    }
+
+    setError(
+      error?.message ||
+        "حدث خطأ أثناء تنفيذ الطلب."
+    );
+
+  } finally {
+    setSaving(false);
+  }
+ };
 
 
   /* =======================================================
@@ -2826,6 +2858,62 @@ ${updatedShop.name}
     }
   };
 
+
+  const advanceOrder = async (nextStatus) => {
+    if (saving || syncing) return;
+    if (!order.shop_id) {
+      setError("لا يمكن تحديث حالة الطلب قبل إنشاء المحل والكارت.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    try {
+      const { data: updatedOrder, error: orderError } = await supabase
+        .from("orders")
+        .update({ status: nextStatus })
+        .eq("id", order.id)
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      setOrders((current) =>
+        current.map((item) =>
+          item.id === order.id ? updatedOrder : item
+        )
+      );
+
+      if (nextStatus === "ready") {
+        const { data: activeCards, error: cardsError } = await supabase
+          .from("cards")
+          .update({ status: "active" })
+          .eq("shop_id", order.shop_id)
+          .select("*, shops:shop_id(name, slug)");
+
+        if (cardsError) throw cardsError;
+
+        if (activeCards?.length) {
+          setCards((current) => {
+            const incoming = new Map(
+              activeCards.map((card) => [card.id, card])
+            );
+            return current.map((card) =>
+              incoming.get(card.id) || card
+            );
+          });
+        }
+      }
+
+      await onCompleted();
+    } catch (error) {
+      console.error("ADVANCE ORDER ERROR:", error);
+      setError(error?.message || "تعذر تحديث حالة الطلب.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Modal
@@ -3235,62 +3323,200 @@ ${updatedShop.name}
 
         {/* ACTIONS */}
 
-        <div className="modal-actions">
+<div className="modal-actions">
 
-          <button
-            type="button"
-            className="btn btn-outline"
-            onClick={onClose}
-            disabled={
-              saving || syncing
-            }
+  {/* إغلاق */}
+  <button
+    type="button"
+    className="btn btn-outline"
+    onClick={onClose}
+    disabled={saving || syncing}
+  >
+    إغلاق
+  </button>
+
+
+  {/* =====================================================
+      الطلب الجديد
+  ===================================================== */}
+
+  {order.status === "pending" && (
+
+    <button
+      type="button"
+      className="btn btn-primary"
+      onClick={() =>
+        setOrderStatus("reviewing")
+      }
+      disabled={saving || syncing}
+    >
+      {saving
+        ? "جاري تحديث الحالة..."
+        : "بدء مراجعة الطلب"}
+    </button>
+
+  )}
+
+
+  {/* =====================================================
+      الطلب جاهز للتنفيذ
+  ===================================================== */}
+
+  {order.status === "reviewing" && !order.shop_id && (
+
+    <button
+      type="button"
+      className="btn btn-primary"
+      onClick={startOrder}
+      disabled={saving || syncing}
+    >
+      {saving
+        ? "جاري تنفيذ الطلب..."
+        : "بدء تنفيذ الطلب"}
+    </button>
+
+  )}
+
+
+  {/* =====================================================
+      الطلب تم تنفيذه وربطه بمحل
+  ===================================================== */}
+
+  {order.shop_id && (
+
+    <>
+
+      {/* مزامنة بيانات المحل */}
+      <button
+        type="button"
+        className="btn btn-outline"
+        onClick={syncShopData}
+        disabled={saving || syncing}
+      >
+        {syncing
+          ? "جاري المزامنة..."
+          : "مزامنة بيانات المحل"}
+      </button>
+
+
+      {/* تجهيز الكارت */}
+      {order.status === "approved" && (
+
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() =>
+            advanceOrder("ready")
+          }
+          disabled={saving || syncing}
+        >
+          {saving
+            ? "جاري تجهيز الكارت..."
+            : "تأكيد جاهزية الكارت"}
+        </button>
+
+      )}
+
+
+      {/* تسجيل التسليم */}
+      {order.status === "ready" && (
+
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() =>
+            advanceOrder("delivered")
+          }
+          disabled={saving || syncing}
+        >
+          {saving
+            ? "جاري تسجيل التسليم..."
+            : "تسجيل التسليم"}
+        </button>
+
+      )}
+
+
+      {/* إلغاء الطلب */}
+      {!["delivered", "cancelled"].includes(
+        order.status
+      ) && (
+
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={() =>
+            setOrderStatus("cancelled")
+          }
+          disabled={saving || syncing}
+        >
+          إلغاء الطلب
+        </button>
+
+      )}
+
+
+      {/* تم التسليم */}
+      {order.status === "delivered" && (
+
+        <div className="info-note success-dashboard-note">
+
+          <CheckCircle2 size={17} />
+
+          تم تسليم الكارت وتسجيل الطلب كمكتمل.
+
+        </div>
+
+      )}
+
+    </>
+
+  )}
+
+
+  {/* =====================================================
+      رسالة لو الطلب مربوط بالفعل
+  ===================================================== */}
+
+  {order.shop_id &&
+    order.status === "approved" && (
+
+      <div className="info-note">
+
+        <CreditCard size={18} />
+
+        <div>
+
+          <strong>
+            الطلب تم تنفيذه
+          </strong>
+
+          <div
+            style={{
+              marginTop: 5,
+            }}
           >
-            إغلاق
-          </button>
+            تم إنشاء صفحة النشاط
+            وربط الكارت بالطلب.
 
+            <br />
 
-          {order.shop_id && (
+            يمكنك الآن تأكيد جاهزية الكارت
+            بعد الانتهاء من تجهيزه.
 
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={
-                syncShopData
-              }
-              disabled={
-                saving || syncing
-              }
-            >
-              {syncing
-                ? "جاري مزامنة البيانات..."
-                : "مزامنة بيانات المحل"}
-            </button>
-
-          )}
-
-
-          {!order.shop_id && (
-
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={startOrder}
-              disabled={
-                saving || syncing
-              }
-            >
-              {saving
-                ? "جاري تنفيذ الطلب..."
-                : "بدء تنفيذ الطلب"}
-            </button>
-
-          )}
+          </div>
 
         </div>
 
       </div>
 
-    </Modal>
+  )}
+
+</div>
+
+</div>
+
+</Modal>
   );
 }
 

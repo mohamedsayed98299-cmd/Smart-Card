@@ -1,31 +1,17 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import fs from "node:fs";
-import path from "node:path";
 
-export default defineConfig({
-  plugins: [
-    react(),
+export default defineConfig(({ command }) => ({
+  plugins: [react()],
 
-    {
-      name: "github-pages-spa-fallback",
+  // Local development:
+  // http://localhost:5173/
 
-      closeBundle() {
-        const distPath = path.resolve("dist");
-        const indexPath = path.join(distPath, "index.html");
-        const fallbackPath = path.join(distPath, "404.html");
-
-        if (fs.existsSync(indexPath)) {
-          fs.copyFileSync(indexPath, fallbackPath);
-          console.log("✓ Created dist/404.html for GitHub Pages SPA routing");
-        }
-      },
-    },
-  ],
-
-  base: "/Smart-Card/",
+  // Production / GitHub Pages:
+  // https://mohamedsayed98299-cmd.github.io/Smart-Card/
+  base: command === "build" ? "/Smart-Card/" : "/",
 
   server: {
     port: 5173,
   },
-});
+}));

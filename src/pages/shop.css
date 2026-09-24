@@ -701,3 +701,119 @@
     max-width: 245px;
   }
 }
+
+/* FINAL RESPONSIVE + TOUCH POLISH */
+
+.shop-share-button,
+.google-button,
+.quick-contact,
+.shop-link-item,
+.share-full-button,
+.shop-location-button {
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+.shop-share-button:focus-visible,
+.google-button:focus-visible,
+.quick-contact:focus-visible,
+.shop-link-item:focus-visible,
+.share-full-button:focus-visible,
+.shop-location-button:focus-visible {
+  outline: 2px solid #63b2ff;
+  outline-offset: 3px;
+}
+
+@media (min-width: 561px) and (max-width: 1024px) {
+  .smart-shop-page {
+    padding: 22px 24px 48px;
+  }
+
+  .shop-container {
+    width: min(100%, 760px);
+  }
+
+  .profile-cover {
+    height: 145px;
+  }
+
+  .profile-content {
+    padding-inline: 30px;
+  }
+
+  .quick-contact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1025px) {
+  .smart-shop-page {
+    padding-top: 28px;
+  }
+
+  .quick-contact,
+  .shop-location-button,
+  .share-full-button {
+    transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+  }
+
+  .quick-contact:hover,
+  .shop-location-button:hover,
+  .share-full-button:hover {
+    transform: translateY(-2px);
+  }
+}
+
+@media (max-width: 390px) {
+  .shop-brand span {
+    display: none;
+  }
+
+  .shop-brand strong {
+    font-size: 17px;
+  }
+
+  .shop-share-button,
+  .shop-brand-logo {
+    width: 40px;
+    height: 40px;
+  }
+
+  .profile-content h1 {
+    font-size: 26px;
+  }
+
+  .shop-description {
+    font-size: 13px;
+  }
+
+  .quick-contact {
+    grid-template-columns: 44px minmax(0, 1fr) 16px;
+    padding: 10px;
+  }
+
+  .quick-icon,
+  .link-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .shop-link-item {
+    grid-template-columns: 44px minmax(0, 1fr) 16px;
+    padding: 9px 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shop-loader {
+    animation: none;
+  }
+
+  .shop-link-item,
+  .quick-contact,
+  .shop-location-button,
+  .share-full-button {
+    transition: none;
+  }
+}

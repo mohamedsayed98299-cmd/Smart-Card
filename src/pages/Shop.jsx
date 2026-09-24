@@ -181,11 +181,17 @@ export default function Shop() {
   };
 
   const whatsapp = () => {
-    const phone = normalizePhoneForWhatsapp(
+    let phone = normalizePhoneForWhatsapp(
       shop?.whatsapp || shop?.phone
     );
 
     if (!phone) return;
+
+    // Support common Egyptian local numbers such as 010xxxxxxxx.
+    // Keep international numbers unchanged.
+    if (/^01\d{9}$/.test(phone)) {
+      phone = `20${phone.slice(1)}`;
+    }
 
     logEvent("whatsapp_click", shop.id);
 
@@ -307,7 +313,8 @@ export default function Shop() {
             type="button"
             className="shop-share-button"
             onClick={sharePage}
-            aria-label="مشاركة الصفحة"
+            aria-label={copied ? "تم نسخ رابط الصفحة" : "مشاركة الصفحة"}
+            title={copied ? "تم نسخ الرابط" : "مشاركة الصفحة"}
           >
             {copied ? "✓" : <Share2 size={19} />}
           </button>

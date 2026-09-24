@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { PLANS } from "../data/plans.js";
 import {
   ArrowLeft,
   Check,
@@ -13,57 +14,6 @@ import {
   Building2,
   Sparkles,
 } from "lucide-react";
-
-const plans = [
-  {
-    name: "Smart Card",
-    price: "299",
-    description: "البداية الذكية لنشاطك التجاري.",
-    icon: CreditCard,
-    features: [
-      "كارت Smart Card",
-      "QR Code",
-      "NFC",
-      "صفحة رقمية خاصة بالنشاط",
-      "Google Reviews",
-      "روابط التواصل والسوشيال",
-    ],
-  },
-  {
-    name: "Smart Card Pro",
-    price: "499",
-    description: "الحل الأكثر طلبًا لتجربة احترافية كاملة.",
-    icon: Crown,
-    featured: true,
-    features: [
-      "كارت Smart Card",
-      "QR Code",
-      "NFC",
-      "صفحة رقمية خاصة بالنشاط",
-      "Google Reviews",
-      "روابط التواصل والسوشيال",
-      "تصميم مخصص",
-      "Analytics وإحصائيات",
-    ],
-  },
-  {
-    name: "Business",
-    price: "799",
-    description: "مصمم للأنشطة والشركات والفروع المتعددة.",
-    icon: Building2,
-    features: [
-      "كارت Smart Card",
-      "QR Code",
-      "NFC",
-      "صفحة رقمية خاصة بالنشاط",
-      "Google Reviews",
-      "روابط التواصل والسوشيال",
-      "تصميم مخصص",
-      "Analytics وإحصائيات",
-      "دعم الفروع والشركات المتعددة",
-    ],
-  },
-];
 
 const highlights = [
   {
@@ -171,7 +121,7 @@ export default function Pricing() {
 
           <div className="sc-price-cards">
 
-            {plans.map((plan, index) => {
+            {PLANS.map((plan, index) => {
               const Icon = plan.icon;
 
               return (
@@ -242,7 +192,7 @@ export default function Pricing() {
                   <Link
                     to="/order"
                     state={{
-                      plan: plan.name,
+                      planId: plan.id,
                     }}
                     className={
                       plan.featured

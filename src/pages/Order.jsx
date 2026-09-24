@@ -22,54 +22,7 @@ import {
 
 import { supabase } from "../lib/supabase.js";
 
-const PLANS = [
-  {
-    name: "Smart Card",
-    price: "400",
-    oldPrice: "500",
-    discount: "20% خصم",
-    text: "البداية الذكية لنشاطك التجاري",
-    features: [
-      "كارت Smart Card",
-      "QR Code",
-      "NFC",
-      "صفحة رقمية خاصة",
-      "Google Reviews",
-      "روابط التواصل",
-    ],
-  },
-  {
-    name: "Smart Card Pro",
-    price: "800",
-    oldPrice: "1000",
-    discount: "20% خصم",
-    text: "التجربة الاحترافية الكاملة",
-    featured: true,
-    features: [
-      "كل مميزات Smart Card",
-      "تصميم احترافي",
-      "صفحة رقمية متقدمة",
-      "Analytics",
-      "إدارة أفضل للروابط",
-      "دعم وتطوير مستمر",
-    ],
-  },
-  {
-    name: "Business",
-    price: "1200",
-    oldPrice: "1500",
-    discount: "20% خصم",
-    text: "للشركات والفروع المتعددة",
-    features: [
-      "كل مميزات Pro",
-      "دعم الشركات",
-      "الفروع المتعددة",
-      "كروت إضافية",
-      "إدارة موسعة",
-      "حلول مخصصة",
-    ],
-  },
-];
+import { DEFAULT_PLAN_ID, PLANS, getPlanById, getPlanByName } from "../data/plans.js";
 
 const EMPTY_FORM = {
   shop_name: "",
@@ -124,9 +77,13 @@ const CSS = `
   margin: 0 auto;
 }
 
+/* =========================================================
+   1. تعديل قسم الشاشة الأول / البانر العلوي (Hero Section)
+   ========================================================= */
 .sc-order-hero {
   position: relative;
-  padding: 72px 0 38px;
+  padding: 60px 0 40px;
+  text-align: right;
 }
 
 .sc-order-hero::before {
@@ -135,10 +92,10 @@ const CSS = `
   width: 420px;
   height: 420px;
   top: -180px;
-  left: -160px;
+  right: -160px;
   border-radius: 50%;
-  background: rgba(59,130,246,.10);
-  filter: blur(70px);
+  background: rgba(59,130,246,.12);
+  filter: blur(80px);
   pointer-events: none;
 }
 
@@ -151,41 +108,43 @@ const CSS = `
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 15px;
-  border: 1px solid rgba(216,170,74,.28);
+  padding: 8px 16px;
+  border: 1px solid rgba(216,170,74,.35);
   border-radius: 999px;
-  background: rgba(216,170,74,.07);
+  background: rgba(216,170,74,.08);
   color: var(--sc-gold-light);
   font-size: 13px;
   font-weight: 800;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .sc-order-title {
   margin: 0;
-  font-size: clamp(34px, 5vw, 64px);
-  line-height: 1.16;
-  font-weight: 950;
-  letter-spacing: -1.5px;
+  font-size: clamp(32px, 4.5vw, 56px);
+  line-height: 1.4;
+  font-weight: 900;
+  color: #ffffff;
 }
 
+/* إصلاح تداخل حرف التاء مع نقطتي الياء بحساب ارتفاع السطر بشكل متناسب */
 .sc-order-title span {
   display: inline-block;
-  background: linear-gradient(90deg, #fff, var(--sc-gold-light), #fff);
+  background: linear-gradient(90deg, #ffffff 0%, var(--sc-gold-light) 50%, #ffffff 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  line-height: 1.25;
-  word-spacing: 3px;
-  letter-spacing: 0;
+  line-height: 1.5;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  word-spacing: 2px;
 }
 
 .sc-order-subtitle {
-  max-width: 730px;
-  margin: 20px 0 0;
+  max-width: 720px;
+  margin: 18px 0 0;
   color: var(--sc-muted);
-  font-size: 17px;
-  line-height: 1.9;
+  font-size: 16px;
+  line-height: 1.8;
 }
 
 .sc-order-layout {
@@ -271,10 +230,6 @@ const CSS = `
   font-size: 12px;
 }
 
-/* FIX:
-   تم تغيير اسم الـ class من sc-order-grid
-   إلى sc-order-form-grid لمنع التعارض مع index.css.
-*/
 .sc-order-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -336,20 +291,23 @@ const CSS = `
   box-shadow: 0 0 0 3px rgba(216,170,74,.08);
 }
 
+/* =========================================================
+   2. تعديل قسم الباقات (Plans Grid)
+   ========================================================= */
 .sc-order-plans {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .sc-order-plan {
   position: relative;
-  min-height: 235px;
-  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+  padding: 50px 16px 20px;
   border-radius: 20px;
-  border: 1px solid rgba(255,255,255,.09);
-  background: 
-    linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.018));
+  border: 1px solid rgba(255,255,255,.10);
+  background: linear-gradient(145deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
   cursor: pointer;
   transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
 }
@@ -360,56 +318,58 @@ const CSS = `
 }
 
 .sc-order-plan.selected {
-  border-color: rgba(216,170,74,.75);
-  background: 
-    linear-gradient(145deg, rgba(216,170,74,.12), rgba(20,31,60,.75));
-  box-shadow: 0 15px 40px rgba(0,0,0,.22);
+  border-color: rgba(216,170,74,.85);
+  background: linear-gradient(145deg, rgba(216,170,74,.12), rgba(15,25,51,.85));
+  box-shadow: 0 12px 35px rgba(0,0,0,.35);
+}
+
+.sc-order-plan-header-tags {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  pointer-events: none;
 }
 
 .sc-order-plan.featured::before {
-  content: "الأكثر طلبًا";
-  position: absolute;
-  top: 13px;
-  left: 13px;
-  padding: 5px 9px;
+  content: "الأكثر طلباً";
+  padding: 4px 9px;
   border-radius: 999px;
   background: linear-gradient(135deg, #d8aa4a, #f1d58d);
   color: #17120a;
   font-size: 10px;
-  font-weight: 950;
+  font-weight: 900;
+  display: inline-block;
 }
 
 .sc-order-plan-discount {
-  position: absolute;
-  top: 13px;
-  right: 13px;
-  padding: 5px 9px;
+  padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(34,197,94,.11);
-  border: 1px solid rgba(34,197,94,.25);
+  background: rgba(34,197,94,.12);
+  border: 1px solid rgba(34,197,94,.30);
   color: #86efac;
   font-size: 10px;
-  font-weight: 950;
-  z-index: 2;
-}
-
-.sc-order-plan.featured .sc-order-plan-discount {
-  right: auto;
-  left: 13px;
-  top: 48px;
+  font-weight: 900;
+  margin-right: auto;
 }
 
 .sc-order-plan-check {
   position: absolute;
   top: 14px;
-  right: 14px;
-  width: 23px;
-  height: 23px;
+  left: 14px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255,255,255,.18);
+  border: 1px solid rgba(255,255,255,.20);
   color: transparent;
+  background: rgba(255,255,255,.05);
+  z-index: 2;
 }
 
 .sc-order-plan.selected .sc-order-plan-check {
@@ -419,35 +379,37 @@ const CSS = `
 }
 
 .sc-order-plan-name {
-  margin: 28px 0 5px;
-  font-size: 17px;
-  font-weight: 950;
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 900;
+  color: #ffffff;
 }
 
 .sc-order-plan-text {
-  min-height: 40px;
+  min-height: 38px;
   color: var(--sc-muted);
   font-size: 12px;
-  line-height: 1.7;
+  line-height: 1.6;
 }
 
 .sc-order-plan-price {
-  margin: 16px 0;
+  margin: 14px 0 18px;
   display: flex;
   align-items: baseline;
   gap: 8px;
   flex-wrap: wrap;
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 950;
   color: var(--sc-gold-light);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  padding-bottom: 12px;
 }
 
 .sc-order-plan-old-price {
   color: #71809a;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
 }
 
 .sc-order-plan-price small {
@@ -457,21 +419,25 @@ const CSS = `
 }
 
 .sc-order-plan-features {
-  display: grid;
-  gap: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .sc-order-plan-feature {
   display: flex;
-  align-items: center;
-  gap: 7px;
+  align-items: flex-start;
+  gap: 8px;
   color: #cbd5e1;
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: right;
 }
 
 .sc-order-plan-feature svg {
   color: var(--sc-gold);
-  flex: 0 0 auto;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .sc-order-social-grid {
@@ -893,11 +859,11 @@ const CSS = `
   }
 
   .sc-order-hero {
-    padding: 42px 0 25px;
+    padding: 36px 0 20px;
   }
 
   .sc-order-title {
-    font-size: 38px;
+    font-size: 32px;
   }
 
   .sc-order-subtitle {
@@ -941,20 +907,19 @@ const CSS = `
     margin-left: 17px;
     margin-right: 17px;
   }
-
-  .sc-order-plan.featured .sc-order-plan-discount {
-    top: 13px;
-    left: 13px;
-  }
 }
 `;
 
 export default function Order() {
   const location = useLocation();
 
-  const initialPlan = location.state?.plan || "Smart Card Pro";
+  const initialPlanId =
+    location.state?.planId ||
+    (location.state?.plan
+      ? getPlanByName(location.state.plan).id
+      : DEFAULT_PLAN_ID);
 
-  const [plan, setPlan] = useState(initialPlan);
+  const [planId, setPlanId] = useState(initialPlanId);
   const [form, setForm] = useState(EMPTY_FORM);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -977,8 +942,6 @@ export default function Order() {
 
         setUser(currentUser || null);
 
-        // لو رجعنا من Google Login
-        // نسترجع بيانات الطلب المحفوظة
         const savedOrder = sessionStorage.getItem(
           "smart_card_pending_order"
         );
@@ -991,8 +954,10 @@ export default function Order() {
               setForm(parsed.form);
             }
 
-            if (parsed.plan) {
-              setPlan(parsed.plan);
+            if (parsed.planId) {
+              setPlanId(parsed.planId);
+            } else if (parsed.plan) {
+              setPlanId(getPlanByName(parsed.plan).id);
             }
 
             sessionStorage.removeItem(
@@ -1038,8 +1003,7 @@ export default function Order() {
     };
   }, []);
 
-  const selectedPlan =
-    PLANS.find((item) => item.name === plan) || PLANS[1];
+  const selectedPlan = getPlanById(planId);
 
   function updateField(field, value) {
     setForm((current) => ({
@@ -1079,17 +1043,12 @@ export default function Order() {
         data: { user: currentUser },
       } = await supabase.auth.getUser();
 
-      /*
-       * لو المستخدم غير مسجل دخول:
-       * 1. نحفظ بيانات الطلب.
-       * 2. نفتح Google Login.
-       * 3. بعد الرجوع لـ /order البيانات هترجع تلقائيًا.
-       */
       if (!currentUser) {
         sessionStorage.setItem(
           "smart_card_pending_order",
           JSON.stringify({
             plan: selectedPlan.name,
+            planId: selectedPlan.id,
             form,
           })
         );
@@ -1099,8 +1058,8 @@ export default function Order() {
             provider: "google",
             options: {
               redirectTo: import.meta.env.DEV
-              ? `${window.location.origin}/order`
-              : `${window.location.origin}/Smart-Card/order`
+                ? `${window.location.origin}/order`
+                : `${window.location.origin}/Smart-Card/order`
             },
           });
 
@@ -1111,16 +1070,16 @@ export default function Order() {
         return;
       }
 
-      /*
-       * المستخدم مسجل دخول:
-       * نحفظ الطلب في Supabase مربوط بحسابه.
-       */
       const { error: insertError } = await supabase
         .from("orders")
         .insert({
           user_id: currentUser.id,
 
           plan: selectedPlan.name,
+          plan_price: selectedPlan.price,
+          plan_old_price: selectedPlan.oldPrice,
+          discount_text: selectedPlan.discount,
+          currency: "EGP",
 
           shop_name: form.shop_name.trim(),
           responsible: form.responsible.trim(),
@@ -1167,7 +1126,6 @@ export default function Order() {
         throw insertError;
       }
 
-      // الطلب اتسجل بنجاح
       sessionStorage.removeItem(
         "smart_card_pending_order"
       );
@@ -1194,7 +1152,7 @@ export default function Order() {
 
   function resetOrder() {
     setForm(EMPTY_FORM);
-    setPlan(initialPlan);
+    setPlanId(initialPlanId);
     setError("");
     setSuccess(false);
 
@@ -1260,14 +1218,13 @@ export default function Order() {
             </div>
 
             <h1 className="sc-order-title">
-              خلي نشاطك التجاري
+              خلى نشاطك التجاري
               <br />
               <span>أذكى وأسهل في التواصل</span>
             </h1>
 
             <p className="sc-order-subtitle">
-              اختار الباقة المناسبة، اكتب بيانات نشاطك، وإحنا
-              نستلم الطلب ونجهز لك تجربة Smart Card الخاصة بنشاطك.
+              اختار الباقة المناسبة، اكتب بيانات نشاطك، وإحنا نستلم الطلب ونجهز لك تجربة Smart Card الخاصة بنشاطك.
             </p>
           </div>
         </div>
@@ -1305,7 +1262,7 @@ export default function Order() {
 
                   <div className="sc-order-plans">
                     {PLANS.map((item) => {
-                      const selected = item.name === plan;
+                      const selected = item.id === planId;
 
                       return (
                         <div
@@ -1315,26 +1272,30 @@ export default function Order() {
                             selected ? "selected" : "",
                             item.featured ? "featured" : "",
                           ].join(" ")}
-                          onClick={() => setPlan(item.name)}
+                          onClick={() => setPlanId(item.id)}
                           role="button"
                           tabIndex={0}
+                          aria-pressed={selected}
                           onKeyDown={(event) => {
                             if (
                               event.key === "Enter" ||
                               event.key === " "
                             ) {
-                              setPlan(item.name);
+                              setPlanId(item.id);
                             }
                           }}
                         >
-                          <div className="sc-order-plan-check">
-                            {selected && (
-                              <Check size={14} />
+                          <div className="sc-order-plan-header-tags">
+                            {item.discount && (
+                              <div className="sc-order-plan-discount">
+                                {item.discount}
+                              </div>
                             )}
                           </div>
 
-                          <div className="sc-order-plan-discount">
-                            {item.discount}
+                          {/* تم التعديل بتمكين دائرة الاختيار لجميع الباقات بلا استثناء */}
+                          <div className="sc-order-plan-check">
+                            {selected && <Check size={14} />}
                           </div>
 
                           <div className="sc-order-plan-name">
@@ -1342,7 +1303,7 @@ export default function Order() {
                           </div>
 
                           <div className="sc-order-plan-text">
-                            {item.text}
+                            {item.shortDescription || item.description}
                           </div>
 
                           <div className="sc-order-plan-price">
@@ -1351,9 +1312,11 @@ export default function Order() {
                               <small> جنيه</small>
                             </span>
 
-                            <span className="sc-order-plan-old-price">
-                              {item.oldPrice} جنيه
-                            </span>
+                            {item.oldPrice && (
+                              <span className="sc-order-plan-old-price">
+                                {item.oldPrice} جنيه
+                              </span>
+                            )}
                           </div>
 
                           <div className="sc-order-plan-features">
@@ -1365,7 +1328,7 @@ export default function Order() {
                                   key={feature}
                                 >
                                   <Check size={13} />
-                                  {feature}
+                                  <span>{feature}</span>
                                 </div>
                               ))}
                           </div>
@@ -1855,9 +1818,11 @@ export default function Order() {
                           <small> جنيه</small>
                         </span>
 
-                        <span className="sc-order-selected-old-price">
-                          {selectedPlan.oldPrice}
-                        </span>
+                        {selectedPlan.oldPrice && (
+                          <span className="sc-order-selected-old-price">
+                            {selectedPlan.oldPrice} جنيه
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1903,9 +1868,6 @@ export default function Order() {
   );
 }
 
-/*
-Google icon بسيط بدون الاعتماد على مكتبة أيقونات إضافية.
-*/
 function FaGoogleFallback() {
   return (
     <span
