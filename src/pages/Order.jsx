@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Check,
@@ -22,7 +22,14 @@ import {
 
 import { supabase } from "../lib/supabase.js";
 
-import { DEFAULT_PLAN_ID, PLANS, getPlanById, getPlanByName } from "../data/plans.js";
+import {
+  DEFAULT_PLAN_ID,
+  PLANS,
+  getPlanById,
+  getPlanByName,
+} from "../data/plans.js";
+
+const PENDING_ORDER_KEY = "smart_card_pending_order";
 
 const EMPTY_FORM = {
   shop_name: "",
@@ -77,9 +84,6 @@ const CSS = `
   margin: 0 auto;
 }
 
-/* =========================================================
-   1. تعديل قسم الشاشة الأول / البانر العلوي (Hero Section)
-   ========================================================= */
 .sc-order-hero {
   position: relative;
   padding: 60px 0 40px;
@@ -126,7 +130,6 @@ const CSS = `
   color: #ffffff;
 }
 
-/* إصلاح تداخل حرف التاء مع نقطتي الياء بحساب ارتفاع السطر بشكل متناسب */
 .sc-order-title span {
   display: inline-block;
   background: linear-gradient(90deg, #ffffff 0%, var(--sc-gold-light) 50%, #ffffff 100%);
@@ -291,9 +294,6 @@ const CSS = `
   box-shadow: 0 0 0 3px rgba(216,170,74,.08);
 }
 
-/* =========================================================
-   2. تعديل قسم الباقات (Plans Grid)
-   ========================================================= */
 .sc-order-plans {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -839,6 +839,16 @@ const CSS = `
   border: 1px solid rgba(255,255,255,.10);
 }
 
+@keyframes sc-order-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 1050px) {
   .sc-order-layout {
     grid-template-columns: 1fr;
@@ -912,11 +922,15 @@ const CSS = `
 
 export default function Order() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const autoSubmitStartedRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const initialPlanId =
     location.state?.planId ||
     (location.state?.plan
-      ? getPlanByName(location.state.plan).id
+      ? getPlanByName(location.state.plan)?.id
       : DEFAULT_PLAN_ID);
 
   const [planId, setPlanId] = useState(initialPlanId);
@@ -925,60 +939,242 @@ export default function Order() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  // Auth states
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
+  const selectedPlan = getPlanById(planId);
+
+  /*
+   * =========================================================
+   * حفظ الطلب في Supabase
+   * =========================================================
+   */
+  async function createOrder(currentUser, orderPlan, orderForm) {
+    if (!currentUser) {
+      throw new Error("USER_NOT_AUTHENTICATED");
+    }
+
+    if (!orderPlan) {
+      throw new Error("PLAN_NOT_FOUND");
+    }
+
+    const { error: insertError } = await supabase
+      .from("orders")
+      .insert({
+        user_id: currentUser.id,
+
+        plan: orderPlan.name,
+        plan_price: orderPlan.price,
+        plan_old_price: orderPlan.oldPrice,
+        discount_text: orderPlan.discount,
+        currency: "EGP",
+
+        shop_name: orderForm.shop_name.trim(),
+        responsible: orderForm.responsible.trim(),
+        phone: orderForm.phone.trim(),
+
+        whatsapp: orderForm.whatsapp?.trim() || null,
+
+        email:
+          orderForm.email?.trim() ||
+          currentUser.email ||
+          null,
+
+        google_review:
+          orderForm.google_review?.trim() || null,
+
+        instagram:
+          orderForm.instagram?.trim() || null,
+
+        facebook:
+          orderForm.facebook?.trim() || null,
+
+        tiktok:
+          orderForm.tiktok?.trim() || null,
+
+        youtube:
+          orderForm.youtube?.trim() || null,
+
+        website:
+          orderForm.website?.trim() || null,
+
+        location:
+          orderForm.location?.trim() || null,
+
+        description:
+          orderForm.description?.trim() || null,
+
+        logo_url:
+          orderForm.logo_url?.trim() || null,
+
+        status: "pending",
+      });
+
+    if (insertError) {
+      throw insertError;
+    }
+  }
+
+  /*
+   * =========================================================
+   * إرسال الطلب المعلق بعد الرجوع من Google
+   * =========================================================
+   */
+  async function submitPendingOrder(currentUser) {
+    if (!currentUser) return false;
+
+    if (autoSubmitStartedRef.current) {
+      return false;
+    }
+
+    const savedOrder = sessionStorage.getItem(PENDING_ORDER_KEY);
+
+    if (!savedOrder) {
+      return false;
+    }
+
+    autoSubmitStartedRef.current = true;
+
+    try {
+      const parsed = JSON.parse(savedOrder);
+
+      const restoredForm = parsed?.form;
+
+      if (!restoredForm) {
+        throw new Error("INVALID_PENDING_ORDER");
+      }
+
+      const restoredPlanId =
+        parsed.planId ||
+        (parsed.plan
+          ? getPlanByName(parsed.plan)?.id
+          : DEFAULT_PLAN_ID);
+
+      const restoredPlan = getPlanById(restoredPlanId);
+
+      if (!restoredPlan) {
+        throw new Error("PLAN_NOT_FOUND");
+      }
+
+      if (!restoredForm.shop_name?.trim()) {
+        throw new Error("SHOP_NAME_REQUIRED");
+      }
+
+      if (!restoredForm.responsible?.trim()) {
+        throw new Error("RESPONSIBLE_REQUIRED");
+      }
+
+      if (!restoredForm.phone?.trim()) {
+        throw new Error("PHONE_REQUIRED");
+      }
+
+      if (mountedRef.current) {
+        setLoading(true);
+        setError("");
+        setPlanId(restoredPlan.id);
+        setForm(restoredForm);
+      }
+
+      /*
+       * هنا أهم نقطة:
+       * بعد نجاح Google Login يتم إرسال الطلب تلقائيًا.
+       */
+      await createOrder(
+        currentUser,
+        restoredPlan,
+        restoredForm
+      );
+
+      /*
+       * نحذف الطلب المعلق فقط بعد نجاح الحفظ.
+       * لو حصل خطأ، يفضل موجود علشان المستخدم يقدر يحاول تاني.
+       */
+      sessionStorage.removeItem(PENDING_ORDER_KEY);
+
+      if (mountedRef.current) {
+        setLoading(false);
+
+        /*
+         * الانتقال المباشر للحساب.
+         */
+        navigate("/account", {
+          replace: true,
+          state: {
+            orderSubmitted: true,
+          },
+        });
+      }
+
+      return true;
+    } catch (submitError) {
+      console.error(
+        "Automatic pending order submit error:",
+        submitError
+      );
+
+      /*
+       * نرجع السماح بالمحاولة في حالة الخطأ.
+       */
+      autoSubmitStartedRef.current = false;
+
+      if (mountedRef.current) {
+        setLoading(false);
+
+        setError(
+          "تم تسجيل الدخول بنجاح، لكن حصلت مشكلة أثناء حفظ الطلب. اضغط إرسال الطلب مرة أخرى."
+        );
+      }
+
+      return false;
+    }
+  }
+
+  /*
+   * =========================================================
+   * تحميل المستخدم + التعامل مع رجوع Google OAuth
+   * =========================================================
+   */
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
+
+    let subscription;
 
     async function loadUser() {
       try {
         const {
           data: { user: currentUser },
+          error: userError,
         } = await supabase.auth.getUser();
 
-        if (!mounted) return;
+        if (userError) {
+          throw userError;
+        }
+
+        if (!mountedRef.current) return;
 
         setUser(currentUser || null);
 
-        const savedOrder = sessionStorage.getItem(
-          "smart_card_pending_order"
-        );
+        /*
+         * لو رجعنا من Google والمستخدم عنده طلب معلق:
+         * يتم إرساله تلقائيًا.
+         */
+        if (currentUser) {
+          const savedOrder = sessionStorage.getItem(
+            PENDING_ORDER_KEY
+          );
 
-        if (currentUser && savedOrder) {
-          try {
-            const parsed = JSON.parse(savedOrder);
-
-            if (parsed.form) {
-              setForm(parsed.form);
-            }
-
-            if (parsed.planId) {
-              setPlanId(parsed.planId);
-            } else if (parsed.plan) {
-              setPlanId(getPlanByName(parsed.plan).id);
-            }
-
-            sessionStorage.removeItem(
-              "smart_card_pending_order"
-            );
-          } catch (restoreError) {
-            console.error(
-              "Restore order error:",
-              restoreError
-            );
-
-            sessionStorage.removeItem(
-              "smart_card_pending_order"
-            );
+          if (savedOrder) {
+            await submitPendingOrder(currentUser);
           }
         }
       } catch (authError) {
         console.error("Auth load error:", authError);
-        setUser(null);
+
+        if (mountedRef.current) {
+          setUser(null);
+        }
       } finally {
-        if (mounted) {
+        if (mountedRef.current) {
           setAuthLoading(false);
         }
       }
@@ -987,23 +1183,42 @@ export default function Order() {
     loadUser();
 
     const {
-      data: { subscription },
+      data: { subscription: authSubscription },
     } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!mounted) return;
+      async (_event, session) => {
+        if (!mountedRef.current) return;
 
-        setUser(session?.user || null);
+        const currentUser = session?.user || null;
+
+        setUser(currentUser);
         setAuthLoading(false);
+
+        /*
+         * بعض الأحيان OAuth event يحصل بعد getUser.
+         * الـref تمنع إرسال نفس الطلب مرتين.
+         */
+        if (currentUser) {
+          const savedOrder = sessionStorage.getItem(
+            PENDING_ORDER_KEY
+          );
+
+          if (savedOrder) {
+            await submitPendingOrder(currentUser);
+          }
+        }
       }
     );
 
+    subscription = authSubscription;
+
     return () => {
-      mounted = false;
-      subscription.unsubscribe();
+      mountedRef.current = false;
+
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
   }, []);
-
-  const selectedPlan = getPlanById(planId);
 
   function updateField(field, value) {
     setForm((current) => ({
@@ -1016,6 +1231,11 @@ export default function Order() {
     }
   }
 
+  /*
+   * =========================================================
+   * إرسال الطلب يدويًا
+   * =========================================================
+   */
   async function handleSubmit(event) {
     event.preventDefault();
 
@@ -1036,6 +1256,11 @@ export default function Order() {
       return;
     }
 
+    if (!selectedPlan) {
+      setError("من فضلك اختار الباقة.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -1043,9 +1268,15 @@ export default function Order() {
         data: { user: currentUser },
       } = await supabase.auth.getUser();
 
+      /*
+       * =====================================================
+       * المستخدم غير مسجل:
+       * نحفظ الطلب مؤقتًا ثم نبدأ Google OAuth.
+       * =====================================================
+       */
       if (!currentUser) {
         sessionStorage.setItem(
-          "smart_card_pending_order",
+          PENDING_ORDER_KEY,
           JSON.stringify({
             plan: selectedPlan.name,
             planId: selectedPlan.id,
@@ -1053,13 +1284,15 @@ export default function Order() {
           })
         );
 
+        const redirectTo = import.meta.env.DEV
+          ? `${window.location.origin}/order`
+          : `${window.location.origin}/Smart-Card/order`;
+
         const { error: googleError } =
           await supabase.auth.signInWithOAuth({
             provider: "google",
             options: {
-              redirectTo: import.meta.env.DEV
-                ? `${window.location.origin}/order`
-                : `${window.location.origin}/Smart-Card/order`
+              redirectTo,
             },
           });
 
@@ -1067,74 +1300,35 @@ export default function Order() {
           throw googleError;
         }
 
+        /*
+         * هنا المتصفح هينتقل لـ Google.
+         * بعد الرجوع، useEffect + onAuthStateChange
+         * هيكملوا إرسال الطلب تلقائيًا.
+         */
         return;
       }
 
-      const { error: insertError } = await supabase
-        .from("orders")
-        .insert({
-          user_id: currentUser.id,
-
-          plan: selectedPlan.name,
-          plan_price: selectedPlan.price,
-          plan_old_price: selectedPlan.oldPrice,
-          discount_text: selectedPlan.discount,
-          currency: "EGP",
-
-          shop_name: form.shop_name.trim(),
-          responsible: form.responsible.trim(),
-          phone: form.phone.trim(),
-
-          whatsapp: form.whatsapp.trim() || null,
-
-          email:
-            form.email.trim() ||
-            currentUser.email ||
-            null,
-
-          google_review:
-            form.google_review.trim() || null,
-
-          instagram:
-            form.instagram.trim() || null,
-
-          facebook:
-            form.facebook.trim() || null,
-
-          tiktok:
-            form.tiktok.trim() || null,
-
-          youtube:
-            form.youtube.trim() || null,
-
-          website:
-            form.website.trim() || null,
-
-          location:
-            form.location.trim() || null,
-
-          description:
-            form.description.trim() || null,
-
-          logo_url:
-            form.logo_url.trim() || null,
-
-          status: "pending",
-        });
-
-      if (insertError) {
-        throw insertError;
-      }
-
-      sessionStorage.removeItem(
-        "smart_card_pending_order"
+      /*
+       * المستخدم مسجل بالفعل:
+       * نرسل الطلب مباشرة.
+       */
+      await createOrder(
+        currentUser,
+        selectedPlan,
+        form
       );
 
-      setSuccess(true);
+      sessionStorage.removeItem(PENDING_ORDER_KEY);
 
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
+      /*
+       * بدل شاشة النجاح القديمة:
+       * ندخل مباشرة على الحساب بعد إرسال الطلب.
+       */
+      navigate("/account", {
+        replace: true,
+        state: {
+          orderSubmitted: true,
+        },
       });
     } catch (submitError) {
       console.error(
@@ -1142,11 +1336,15 @@ export default function Order() {
         submitError
       );
 
-      setError(
-        "حصلت مشكلة أثناء إرسال الطلب. تأكد من تسجيل الدخول وحاول مرة أخرى."
-      );
+      if (mountedRef.current) {
+        setError(
+          "حصلت مشكلة أثناء إرسال الطلب. تأكد من تسجيل الدخول وحاول مرة أخرى."
+        );
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   }
 
@@ -1162,6 +1360,11 @@ export default function Order() {
     });
   }
 
+  /*
+   * =========================================================
+   * شاشة النجاح القديمة - احتياطية فقط
+   * =========================================================
+   */
   if (success) {
     return (
       <main className="sc-order-page">
@@ -1177,7 +1380,7 @@ export default function Order() {
 
             <p>
               استلمنا بيانات نشاطك التجاري وباقة{" "}
-              <strong>{selectedPlan.name}</strong>.
+              <strong>{selectedPlan?.name}</strong>.
               <br />
               هنراجع البيانات ونتواصل معاك لاستكمال التفاصيل.
             </p>
@@ -1205,6 +1408,11 @@ export default function Order() {
     );
   }
 
+  /*
+   * =========================================================
+   * الواجهة
+   * =========================================================
+   */
   return (
     <main className="sc-order-page">
       <style>{CSS}</style>
@@ -1281,6 +1489,7 @@ export default function Order() {
                               event.key === "Enter" ||
                               event.key === " "
                             ) {
+                              event.preventDefault();
                               setPlanId(item.id);
                             }
                           }}
@@ -1293,7 +1502,6 @@ export default function Order() {
                             )}
                           </div>
 
-                          {/* تم التعديل بتمكين دائرة الاختيار لجميع الباقات بلا استثناء */}
                           <div className="sc-order-plan-check">
                             {selected && <Check size={14} />}
                           </div>
@@ -1303,7 +1511,8 @@ export default function Order() {
                           </div>
 
                           <div className="sc-order-plan-text">
-                            {item.shortDescription || item.description}
+                            {item.shortDescription ||
+                              item.description}
                           </div>
 
                           <div className="sc-order-plan-price">
@@ -1664,10 +1873,7 @@ export default function Order() {
                   <button
                     type="submit"
                     className="sc-order-submit"
-                    disabled={
-                      loading ||
-                      authLoading
-                    }
+                    disabled={loading || authLoading}
                   >
                     {loading || authLoading ? (
                       <>
@@ -1678,7 +1884,6 @@ export default function Order() {
                               "sc-order-spin 1s linear infinite",
                           }}
                         />
-
                         جاري التجهيز...
                       </>
                     ) : user ? (
@@ -1761,7 +1966,6 @@ export default function Order() {
                           {form.location ? (
                             <>
                               <MapPin size={14} />
-
                               <span>
                                 {form.location}
                               </span>
@@ -1769,7 +1973,6 @@ export default function Order() {
                           ) : (
                             <>
                               <Phone size={14} />
-
                               <span>
                                 {form.phone}
                               </span>
@@ -1809,16 +2012,16 @@ export default function Order() {
 
                     <div className="sc-order-selected-row">
                       <div className="sc-order-selected-name">
-                        {selectedPlan.name}
+                        {selectedPlan?.name}
                       </div>
 
                       <div className="sc-order-selected-price">
                         <span>
-                          {selectedPlan.price}
+                          {selectedPlan?.price}
                           <small> جنيه</small>
                         </span>
 
-                        {selectedPlan.oldPrice && (
+                        {selectedPlan?.oldPrice && (
                           <span className="sc-order-selected-old-price">
                             {selectedPlan.oldPrice} جنيه
                           </span>
